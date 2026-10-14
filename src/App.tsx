@@ -11,6 +11,7 @@ export const App: React.FC = () => {
   const [infrastructure, setInfrastructure] = useState<InfrastructureData | null>(null);
   const [selectedPlot, setSelectedPlot] = useState<PlotData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [canvasMode, setCanvasMode] = useState<'light' | 'dark'>('light');
 
   // Modals state
   const [correctionTarget, setCorrectionTarget] = useState<{ plot: PlotData; mode: 'SPLIT_BLOCK' | 'EDIT_BOUNDARY' } | null>(null);
@@ -55,7 +56,6 @@ export const App: React.FC = () => {
 
     if (res.ok) {
       const data = await res.json();
-      // Update local state
       setPlots(prev => prev.map(p => p.plotNumber === plotNumber ? data.plot : p));
       if (selectedPlot?.plotNumber === plotNumber) {
         setSelectedPlot(data.plot);
@@ -84,7 +84,7 @@ export const App: React.FC = () => {
   // Export CSV Action
   const handleExportCsv = () => {
     const link = document.createElement('a');
-    link.href = '/data/reconciliation.json'; // or download CSV directly
+    link.href = '/data/reconciliation.json';
     link.download = 'master_plot_reconciliation.json';
     link.click();
   };
@@ -99,24 +99,24 @@ export const App: React.FC = () => {
       <div style={{
         height: '100vh',
         width: '100vw',
-        background: 'var(--bg-primary)',
+        background: '#fafafa',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'var(--text-main)',
+        color: '#171717',
         gap: '16px'
       }}>
         <div style={{
-          width: '40px',
-          height: '40px',
-          border: '3px solid rgba(6, 182, 212, 0.2)',
-          borderTopColor: '#06b6d4',
+          width: '36px',
+          height: '36px',
+          border: '3px solid rgba(23, 23, 23, 0.12)',
+          borderTopColor: '#171717',
           borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite'
+          animation: 'spin 0.75s linear infinite'
         }} />
-        <div style={{ fontSize: '14px', fontWeight: 600 }}>
-          Loading Kesnand CAD Geometry & Master Inventory...
+        <div style={{ fontSize: '13px', fontWeight: 600, letterSpacing: '-0.01em', color: '#171717' }}>
+          Loading Vishal Chugera Properties CAD Geometry & Master Inventory...
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
@@ -133,6 +133,8 @@ export const App: React.FC = () => {
         incompleteCount={incompleteCount}
         onExportCsv={handleExportCsv}
         onOpenAuditLogs={() => setShowAuditLogs(true)}
+        canvasMode={canvasMode}
+        onToggleCanvasMode={() => setCanvasMode(prev => prev === 'light' ? 'dark' : 'light')}
       />
 
       {/* Main View Area: 2D Geometry Audit & Review with Left Plot Details */}
@@ -142,6 +144,7 @@ export const App: React.FC = () => {
           cadLayers={cadLayers}
           infrastructure={infrastructure}
           selectedPlot={selectedPlot}
+          canvasMode={canvasMode}
           onSelectPlot={setSelectedPlot}
           onOpenManualCorrection={(plot) => setCorrectionTarget({ plot, mode: 'EDIT_BOUNDARY' })}
           onOpenBlockSplitter={(plot) => setCorrectionTarget({ plot, mode: 'SPLIT_BLOCK' })}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Download, ShieldCheck, AlertTriangle, FileText } from 'lucide-react';
+import { Layers, Download, ShieldCheck, AlertTriangle, FileText, Sun, Moon } from 'lucide-react';
 
 interface HeaderProps {
   totalPlots: number;
@@ -8,6 +8,8 @@ interface HeaderProps {
   incompleteCount: number;
   onExportCsv: () => void;
   onOpenAuditLogs: () => void;
+  canvasMode: 'light' | 'dark';
+  onToggleCanvasMode: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,78 +19,85 @@ export const Header: React.FC<HeaderProps> = ({
   incompleteCount,
   onExportCsv,
   onOpenAuditLogs,
+  canvasMode,
+  onToggleCanvasMode,
 }) => {
   return (
     <header style={{
       height: '64px',
-      background: 'rgba(15, 23, 42, 0.95)',
-      backdropFilter: 'blur(10px)',
+      background: '#ffffff',
       borderBottom: '1px solid var(--border-color)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       padding: '0 24px',
-      zIndex: 50,
+      zIndex: 40,
       flexShrink: 0,
+      position: 'relative',
+      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.02)',
     }}>
-      {/* Left: Branding & Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      {/* Left: Brand Icon + Title (DESIGN_SYSTEM.md §3A) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{
           width: '38px',
           height: '38px',
-          borderRadius: '10px',
-          background: 'linear-gradient(135deg, #06b6d4, #6366f1)',
+          borderRadius: '8px',
+          background: 'var(--dark-primary)',
+          color: '#ffffff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 2px 10px rgba(6, 182, 212, 0.4)',
+          fontWeight: 800,
+          fontSize: '15px',
+          letterSpacing: '-0.03em',
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
         }}>
-          <Layers size={22} color="#ffffff" />
+          VC
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.02em', color: '#f8fafc' }}>
-              KESNAND TOWNSHIP
-            </h1>
+            <span style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
+              VISHAL CHUGERA PROPERTIES
+            </span>
             <span style={{
               fontSize: '10px',
+              fontWeight: 700,
               padding: '2px 6px',
-              background: 'rgba(6, 182, 212, 0.2)',
-              color: '#38bdf8',
               borderRadius: '4px',
-              fontWeight: 600,
-              border: '1px solid rgba(6, 182, 212, 0.4)'
+              background: 'var(--bg-subtle)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border-color)',
+              letterSpacing: '0.04em'
             }}>
-              AUDIT SUITE V1
+              AUDIT SUITE
             </span>
           </div>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Tal. Haveli, Dist. Pune • CAD SUB-KESNAND-13.11.2025
-          </p>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', lineHeight: 1.2 }}>
+            Tal. Haveli, Dist. Pune • CAD Geometry & Inventory Audit ({totalPlots} Total Plots)
+          </span>
         </div>
       </div>
 
-      {/* Center: Active Module Badge */}
+      {/* Center: Module Status Indicator */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        background: 'var(--bg-primary)',
-        padding: '6px 16px',
-        borderRadius: '10px',
+        background: 'var(--bg-subtle)',
+        padding: '6px 14px',
+        borderRadius: '8px',
         border: '1px solid var(--border-color)',
-        color: '#38bdf8',
-        fontSize: '13px',
+        color: 'var(--text-main)',
+        fontSize: '12px',
         fontWeight: 600,
-        boxShadow: 'var(--shadow-sm)'
       }}>
-        <Layers size={16} />
-        2D Geometric Audit & Review Platform
+        <Layers size={14} style={{ color: 'var(--dark-primary)' }} />
+        <span>2D Geometric Audit & Inventory Governance</span>
       </div>
 
-      {/* Right: Quick KPI badges & Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
+      {/* Right: KPI Chips, Theme Toggle, & Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '6px' }}>
           <div className="badge badge-unbooked" title="Individually Reconstructed & Validated">
             <ShieldCheck size={12} />
             {validatedCount} Validated
@@ -98,11 +107,23 @@ export const Header: React.FC<HeaderProps> = ({
             {compoundCount} In Blocks
           </div>
           <div className="badge badge-incomplete" title="Incomplete Perimeter Boundaries">
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--status-incomplete)' }}></span>
             {incompleteCount} Incomplete
           </div>
         </div>
 
-        <div style={{ width: '1px', height: '24px', background: 'var(--border-color)' }} />
+        <div style={{ width: '1px', height: '20px', background: 'var(--border-color)', margin: '0 2px' }} />
+
+        {/* Canvas Mode Toggle: Dual Canvas Mode */}
+        <button
+          className="btn btn-secondary"
+          onClick={onToggleCanvasMode}
+          style={{ padding: '6px 10px', fontSize: '11px' }}
+          title={canvasMode === 'light' ? 'Switch Canvas to Dark CAD Drafting Mode' : 'Switch Canvas to Light Blueprint Mode'}
+        >
+          {canvasMode === 'light' ? <Moon size={13} /> : <Sun size={13} />}
+          <span>{canvasMode === 'light' ? 'Dark Canvas' : 'Light Canvas'}</span>
+        </button>
 
         <button
           className="btn btn-secondary"
@@ -110,17 +131,17 @@ export const Header: React.FC<HeaderProps> = ({
           style={{ padding: '6px 12px', fontSize: '12px' }}
           title="Export 523 Plot Reconciliation Table (CSV)"
         >
-          <Download size={14} />
+          <Download size={13} />
           Export CSV
         </button>
 
         <button
-          className="btn btn-secondary"
+          className="btn btn-primary"
           onClick={onOpenAuditLogs}
           style={{ padding: '6px 12px', fontSize: '12px' }}
           title="View Persistent Audit Logs"
         >
-          <FileText size={14} />
+          <FileText size={13} />
           Audit Logs
         </button>
       </div>

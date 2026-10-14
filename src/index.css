@@ -1,34 +1,58 @@
 :root {
-  --bg-primary: #0b0f19;
-  --bg-secondary: #0f172a;
-  --bg-card: #1e293b;
-  --bg-card-hover: #273549;
-  --border-color: #334155;
-  --border-light: #475569;
-  
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
+  /* Design Tokens from DESIGN_SYSTEM.md */
+  --bg-primary: #fafafa;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f5f5f5;
+  --bg-subtle: #f5f5f5;
 
-  --accent-cyan: #06b6d4;
-  --accent-blue: #3b82f6;
-  --accent-indigo: #6366f1;
+  --border-color: #e5e5e5;
+  --border-light: #f0f0f0;
+  --border-input: #d4d4d4;
+  --border-focus: #171717;
+
+  --text-main: #171717;
+  --text-muted: #737373;
+  --text-dim: #a3a3a3;
+  --text-placeholder: #a3a3a3;
+
+  --dark-primary: #171717;
+  --dark-hover: #262626;
 
   /* Status Colors */
-  --status-unbooked: #10b981;        /* Emerald green */
-  --status-booked-unreg: #eab308;    /* Yellow - Booked & Unregistered */
-  --status-booked-reg: #ef4444;      /* Red - Booked & Registered */
-  --status-compound: #ea580c;        /* Orange */
-  --status-incomplete: #a855f7;      /* Purple / Violet (adjusted from red) */
-  --status-review: #06b6d4;          /* Cyan (adjusted from yellow) */
+  --status-unbooked: #059669;
+  --status-unbooked-bg: #ecfdf5;
+  --status-unbooked-border: #a7f3d0;
+
+  --status-booked-unreg: #d97706;
+  --status-booked-unreg-bg: #fffbeb;
+  --status-booked-unreg-border: #fde68a;
+
+  --status-booked-reg: #dc2626;
+  --status-booked-reg-bg: #fef2f2;
+  --status-booked-reg-border: #fecaca;
+
+  --status-compound: #c2410c;
+  --status-compound-bg: #fff7ed;
+  --status-compound-border: #ffedd5;
+
+  --status-incomplete: #7c3aed;
+  --status-incomplete-bg: #f5f3ff;
+  --status-incomplete-border: #ddd6fe;
+
+  --status-review: #475569;
+  --status-review-bg: #f1f5f9;
+  --status-review-border: #cbd5e1;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.15);
-  --shadow-glow: 0 0 20px rgba(6, 182, 212, 0.35);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.07), 0 1px 2px -1px rgba(0, 0, 0, 0.07);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+  --shadow-glow: 0 0 20px rgba(16, 185, 129, 0.25);
 }
 
 * {
@@ -61,72 +85,74 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: var(--bg-subtle);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 3px;
+  background: var(--border-input);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-light);
+  background: var(--text-dim);
 }
 
 /* Glassmorphism panels */
 .glass-panel {
-  background: rgba(30, 41, 59, 0.85);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
+  box-shadow: var(--shadow-sm);
 }
 
 /* Badge pills */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   border-radius: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
 }
 
 .badge-unbooked {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: var(--status-unbooked-bg);
+  color: var(--status-unbooked);
+  border: 1px solid var(--status-unbooked-border);
 }
 
 .badge-booked-unreg {
-  background: rgba(234, 179, 8, 0.15);
-  color: #facc15;
-  border: 1px solid rgba(234, 179, 8, 0.4);
+  background: var(--status-booked-unreg-bg);
+  color: var(--status-booked-unreg);
+  border: 1px solid var(--status-booked-unreg-border);
 }
 
 .badge-booked-reg {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: var(--status-booked-reg-bg);
+  color: var(--status-booked-reg);
+  border: 1px solid var(--status-booked-reg-border);
 }
 
 .badge-compound {
-  background: rgba(234, 88, 12, 0.15);
-  color: #fb923c;
-  border: 1px solid rgba(234, 88, 12, 0.3);
+  background: var(--status-compound-bg);
+  color: var(--status-compound);
+  border: 1px solid var(--status-compound-border);
 }
 
 .badge-incomplete {
-  background: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
-  border: 1px solid rgba(168, 85, 247, 0.35);
+  background: var(--status-incomplete-bg);
+  color: var(--status-incomplete);
+  border: 1px solid var(--status-incomplete-border);
 }
 
 .badge-review {
-  background: rgba(6, 182, 212, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(6, 182, 212, 0.35);
+  background: var(--status-review-bg);
+  color: var(--status-review);
+  border: 1px solid var(--status-review-border);
 }
 
 /* Buttons */
@@ -134,71 +160,104 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
+  gap: 6px;
+  padding: 7px 13px;
+  font-size: 12px;
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
   outline: none;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  background: var(--dark-primary);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+  border: 1px solid var(--dark-primary);
+  box-shadow: var(--shadow-xs);
 }
 .btn-primary:hover {
-  background: linear-gradient(135deg, #0891b2, #2563eb);
-  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.5);
-  transform: translateY(-1px);
+  background: var(--dark-hover);
+  border-color: var(--dark-hover);
+  transform: translateY(-0.5px);
+  box-shadow: var(--shadow-md);
+}
+.btn-primary:active {
+  transform: translateY(0);
 }
 
 .btn-secondary {
-  background: var(--bg-card);
+  background: #ffffff;
   color: var(--text-main);
   border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-xs);
 }
 .btn-secondary:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--border-light);
+  background: var(--bg-subtle);
+  border-color: var(--border-input);
+  color: #000000;
 }
 
 .btn-danger {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: var(--status-booked-reg-bg);
+  color: var(--status-booked-reg);
+  border: 1px solid var(--status-booked-reg-border);
 }
 .btn-danger:hover {
-  background: rgba(239, 68, 68, 0.3);
+  background: #fee2e2;
+}
+
+/* Inputs and Forms */
+.input-field {
+  width: 100%;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-field:focus {
+  border-color: var(--dark-primary);
+  box-shadow: 0 0 0 2px rgba(23, 23, 23, 0.08);
+}
+.input-field::placeholder {
+  color: var(--text-placeholder);
+}
+
+.input-field-error {
+  border-color: #ef4444 !important;
+  background: rgba(254, 242, 242, 0.6) !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15) !important;
+  color: #991b1b !important;
+}
+
+/* Section Cards */
+.section-card {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--shadow-xs);
 }
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 10px rgba(6, 182, 212, 0.3); }
-  50% { box-shadow: 0 0 22px rgba(6, 182, 212, 0.7); }
-}
-
-.pulse-glow {
-  animation: pulseGlow 2s infinite ease-in-out;
-}
-
-/* Slide in from right for Details Panel */
 @keyframes slideInRight {
   0% {
     opacity: 0;
-    transform: translateX(36px);
+    transform: translateX(28px);
   }
   100% {
     opacity: 1;
@@ -207,21 +266,32 @@ body {
 }
 
 .animate-slide-right {
-  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Subtle card entry pulse */
-@keyframes cardEnter {
+@keyframes laser {
   0% {
-    opacity: 0.6;
-    transform: translateY(6px);
+    top: 0%;
+  }
+  50% {
+    top: 98%;
   }
   100% {
-    opacity: 1;
-    transform: translateY(0);
+    top: 0%;
   }
 }
 
-.animate-card-enter {
-  animation: cardEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.animate-laser {
+  animation: laser 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+.animate-ping {
+  animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
 }

@@ -3,7 +3,8 @@ import { PlotData, CADLayers, ExtractionStatus, InfrastructureData, PlotStatus, 
 import { 
   ZoomIn, ZoomOut, Maximize2, Filter, Eye, Layers, CheckCircle2, 
   AlertTriangle, XCircle, HelpCircle, Edit3, 
-  Download, Search, Info, Save, X, CheckCircle
+  Download, Search, Info, Save, X, CheckCircle, SplitSquareVertical,
+  AlertCircle, ShieldCheck
 } from 'lucide-react';
 
 interface GeometryAuditViewProps {
@@ -11,6 +12,7 @@ interface GeometryAuditViewProps {
   cadLayers: CADLayers | null;
   infrastructure: InfrastructureData | null;
   selectedPlot: PlotData | null;
+  canvasMode: 'light' | 'dark';
   onSelectPlot: (plot: PlotData | null) => void;
   onOpenManualCorrection: (plot: PlotData) => void;
   onOpenBlockSplitter: (plot: PlotData) => void;
@@ -28,6 +30,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
   cadLayers,
   infrastructure,
   selectedPlot,
+  canvasMode,
   onSelectPlot,
   onOpenManualCorrection,
   onOpenBlockSplitter,
@@ -130,6 +133,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
   const [regNo, setRegNo] = useState<string>(
     selectedPlot?.customer?.regNo || `PUN/HAV/2026/${1000 + (selectedPlot?.plotNumber || 1)}`
   );
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
@@ -143,9 +147,11 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
       setCustomerPhone(selectedPlot.customer?.contact || '');
       setBookingRef(selectedPlot.customer?.bookingRef || `BK-KES-${selectedPlot.plotNumber.toString().padStart(3, '0')}`);
       setRegNo(selectedPlot.customer?.regNo || `PUN/HAV/2026/${1000 + selectedPlot.plotNumber}`);
+      setFieldErrors({});
       setSuccessToast(null);
     } else {
       setIsEditing(false);
+      setFieldErrors({});
     }
   }, [selectedPlot]);
 
@@ -156,24 +162,55 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
     setEditBaseRate(selectedPlot.baseRatePerSqm || 15000);
     setCustomerName(selectedPlot.customer?.name || '');
     setCustomerPhone(selectedPlot.customer?.contact || '');
+    setFieldErrors({});
+  };
+
+  const scrollToErrorField = (fieldKey: string) => {
+    setTimeout(() => {
+      const el = document.getElementById(`field-${fieldKey}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
+    }, 50);
   };
 
   const handleSaveStatusRecord = async () => {
     if (!selectedPlot) return;
+
+    // Validation (DESIGN_SYSTEM.md §4)
+    const errors: Record<string, string> = {};
+    if (editStatus !== 'UNBOOKED') {
+      if (!customerName.trim()) {
+        errors.customerName = 'Customer or Owner name is required for booking.';
+      }
+      if (!customerPhone.trim()) {
+        errors.customerPhone = 'Contact phone number is required.';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstError = Object.keys(errors)[0];
+      scrollToErrorField(firstError);
+      return;
+    }
+
+    setFieldErrors({});
     setIsSaving(true);
     let customerPayload: CustomerInfo | null = null;
     if (editStatus === 'BOOKED_UNREGISTERED') {
       customerPayload = {
-        name: customerName || 'Booked Client',
-        contact: customerPhone || '+91 98000 00000',
-        bookingRef: bookingRef || `BK-KES-${selectedPlot.plotNumber.toString().padStart(3, '0')}`,
+        name: customerName.trim(),
+        contact: customerPhone.trim(),
+        bookingRef: bookingRef.trim(),
         bookingDate: selectedPlot.customer?.bookingDate || new Date().toISOString().split('T')[0]
       };
     } else if (editStatus === 'BOOKED_REGISTERED') {
       customerPayload = {
-        name: customerName || 'Registered Owner',
-        contact: customerPhone || '+91 98000 00000',
-        regNo: regNo || `PUN/HAV/2026/${1000 + selectedPlot.plotNumber}`,
+        name: customerName.trim(),
+        contact: customerPhone.trim(),
+        regNo: regNo.trim(),
         regDate: selectedPlot.customer?.regDate || new Date().toISOString().split('T')[0]
       };
     }
@@ -181,7 +218,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
     try {
       await onSaveStatus(selectedPlot.plotNumber, editStatus, customerPayload, editBaseRate);
       setIsEditing(false);
-      setSuccessToast(`Plot #${selectedPlot.plotNumber} status successfully updated to ${editStatus}!`);
+      setSuccessToast(`Plot #${selectedPlot.plotNumber} successfully updated to ${editStatus.replace(/_/g, ' ')}!`);
       setTimeout(() => setSuccessToast(null), 3500);
     } catch (err) {
       console.error('Failed to save plot status:', err);
@@ -205,52 +242,37 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
   const currentRate = isEditing ? editBaseRate : (selectedPlot?.baseRatePerSqm || 15000);
   const calculatedTotal = Math.round(effectiveArea * currentRate);
 
-  // Status Styling Colors
-  const getStatusColor = (status: ExtractionStatus, isSelected: boolean) => {
-    if (isSelected) return '#38bdf8'; // Electric cyan when selected
-    switch (status) {
-      case 'INDIVIDUALLY_RECONSTRUCTED_VALIDATED':
-        return '#10b981'; // Emerald Green
-      case 'COMPOUND_BLOCK_REQUIRING_SUBDIVISION':
-        return '#ea580c'; // Vibrant Orange
-      case 'INCOMPLETE_BOUNDARY':
-        return '#a855f7'; // Purple / Violet (adjusted from red)
-      case 'RECONSTRUCTED_AWAITING_REVIEW':
-        return '#06b6d4'; // Cyan (adjusted from yellow)
-      case 'DUPLICATE_OR_AMBIGUOUS_IDENTITY':
-        return '#ec4899'; // Pink
-      default:
-        return '#64748b';
-    }
+  // Status Styling Colors for Plot Dots & Directory
+  const getPlotBadgeDotColor = (plot: PlotData) => {
+    if (plot.status === 'BOOKED_REGISTERED') return 'var(--status-booked-reg)';
+    if (plot.status === 'BOOKED_UNREGISTERED') return 'var(--status-booked-unreg)';
+    if (plot.extractionStatus === 'COMPOUND_BLOCK_REQUIRING_SUBDIVISION') return 'var(--status-compound)';
+    if (plot.extractionStatus === 'INCOMPLETE_BOUNDARY') return 'var(--status-incomplete)';
+    if (plot.extractionStatus === 'RECONSTRUCTED_AWAITING_REVIEW') return 'var(--status-review)';
+    return 'var(--status-unbooked)';
   };
 
-  const getPlotBadgeDotColor = (plot: PlotData) => {
-    if (plot.status === 'BOOKED_REGISTERED') return '#ef4444'; // Red
-    if (plot.status === 'BOOKED_UNREGISTERED') return '#eab308'; // Yellow
-    if (plot.extractionStatus === 'COMPOUND_BLOCK_REQUIRING_SUBDIVISION') return '#ea580c'; // Orange
-    if (plot.extractionStatus === 'INCOMPLETE_BOUNDARY') return '#a855f7'; // Purple
-    if (plot.extractionStatus === 'RECONSTRUCTED_AWAITING_REVIEW') return '#06b6d4'; // Cyan
-    return '#10b981'; // Green
-  };
+  const isLight = canvasMode === 'light';
 
   return (
     <div style={{ display: 'flex', height: '100%', width: '100%', position: 'relative', overflow: 'hidden' }}>
-      {/* Left Control & Filter Sidebar */}
+      {/* Left Control & Filter Sidebar (DESIGN_SYSTEM.md §2 & §4) */}
       <div style={{
         width: '320px',
-        background: 'var(--bg-secondary)',
+        background: '#ffffff',
         borderRight: '1px solid var(--border-color)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 20,
         flexShrink: 0,
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxShadow: '1px 0 2px 0 rgba(0, 0, 0, 0.02)'
       }}>
         {/* Search & Filter Header */}
         <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <Layers size={18} color="#06b6d4" />
-            <h2 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
+            <Layers size={16} color="var(--dark-primary)" />
+            <h2 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-main)' }}>
               Geometry Validation Pipeline
             </h2>
           </div>
@@ -263,22 +285,14 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               placeholder="Search plot number (1 - 523)..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px 8px 32px',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                color: '#fff',
-                fontSize: '12px',
-                outline: 'none'
-              }}
+              className="input-field"
+              style={{ paddingLeft: '32px' }}
             />
           </div>
 
           {/* Category Filter Pills */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>
+            <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               FILTER BY AUDIT STATUS:
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
@@ -291,35 +305,60 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               </button>
               <button
                 className={`btn ${statusFilter === 'INDIVIDUALLY_RECONSTRUCTED_VALIDATED' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '5px 8px', fontSize: '11px', justifyContent: 'flex-start', color: statusFilter === 'INDIVIDUALLY_RECONSTRUCTED_VALIDATED' ? '#fff' : '#34d399' }}
+                style={{
+                  padding: '5px 8px',
+                  fontSize: '11px',
+                  justifyContent: 'flex-start',
+                  color: statusFilter === 'INDIVIDUALLY_RECONSTRUCTED_VALIDATED' ? '#fff' : 'var(--status-unbooked)'
+                }}
                 onClick={() => setStatusFilter('INDIVIDUALLY_RECONSTRUCTED_VALIDATED')}
               >
                 Validated ({validatedCount})
               </button>
               <button
                 className={`btn ${statusFilter === 'COMPOUND_BLOCK_REQUIRING_SUBDIVISION' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '5px 8px', fontSize: '11px', justifyContent: 'flex-start', color: statusFilter === 'COMPOUND_BLOCK_REQUIRING_SUBDIVISION' ? '#fff' : '#fb923c' }}
+                style={{
+                  padding: '5px 8px',
+                  fontSize: '11px',
+                  justifyContent: 'flex-start',
+                  color: statusFilter === 'COMPOUND_BLOCK_REQUIRING_SUBDIVISION' ? '#fff' : 'var(--status-compound)'
+                }}
                 onClick={() => setStatusFilter('COMPOUND_BLOCK_REQUIRING_SUBDIVISION')}
               >
                 Blocks ({compoundCount})
               </button>
               <button
                 className={`btn ${statusFilter === 'INCOMPLETE_BOUNDARY' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '5px 8px', fontSize: '11px', justifyContent: 'flex-start', color: statusFilter === 'INCOMPLETE_BOUNDARY' ? '#fff' : '#c084fc' }}
+                style={{
+                  padding: '5px 8px',
+                  fontSize: '11px',
+                  justifyContent: 'flex-start',
+                  color: statusFilter === 'INCOMPLETE_BOUNDARY' ? '#fff' : 'var(--status-incomplete)'
+                }}
                 onClick={() => setStatusFilter('INCOMPLETE_BOUNDARY')}
               >
                 Incomplete ({incompleteCount})
               </button>
               <button
                 className={`btn ${statusFilter === 'RECONSTRUCTED_AWAITING_REVIEW' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '5px 8px', fontSize: '11px', justifyContent: 'flex-start', color: statusFilter === 'RECONSTRUCTED_AWAITING_REVIEW' ? '#fff' : '#38bdf8' }}
+                style={{
+                  padding: '5px 8px',
+                  fontSize: '11px',
+                  justifyContent: 'flex-start',
+                  color: statusFilter === 'RECONSTRUCTED_AWAITING_REVIEW' ? '#fff' : 'var(--text-main)'
+                }}
                 onClick={() => setStatusFilter('RECONSTRUCTED_AWAITING_REVIEW')}
               >
                 Review ({reviewCount})
               </button>
               <button
                 className={`btn ${statusFilter === 'DUPLICATE_OR_AMBIGUOUS_IDENTITY' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '5px 8px', fontSize: '11px', justifyContent: 'flex-start', color: statusFilter === 'DUPLICATE_OR_AMBIGUOUS_IDENTITY' ? '#fff' : '#c084fc' }}
+                style={{
+                  padding: '5px 8px',
+                  fontSize: '11px',
+                  justifyContent: 'flex-start',
+                  color: statusFilter === 'DUPLICATE_OR_AMBIGUOUS_IDENTITY' ? '#fff' : 'var(--status-incomplete)'
+                }}
                 onClick={() => setStatusFilter('DUPLICATE_OR_AMBIGUOUS_IDENTITY')}
               >
                 Ambiguous ({ambiguousCount})
@@ -329,33 +368,33 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
         </div>
 
         {/* CAD Layer Toggles */}
-        <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
-          <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+          <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px', display: 'block' }}>
             LAYER VISIBILITY OVERLAYS:
           </label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showRawCad} onChange={e => setShowRawCad(e.target.checked)} />
-              <span>Raw CAD Geometry (WALL, DIM, 0)</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-main)' }}>
+              <input type="checkbox" checked={showRawCad} onChange={e => setShowRawCad(e.target.checked)} style={{ accentColor: 'var(--dark-primary)' }} />
+              <span>Raw CAD Linework (WALL, 0, DIM)</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showPolygons} onChange={e => setShowPolygons(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-main)' }}>
+              <input type="checkbox" checked={showPolygons} onChange={e => setShowPolygons(e.target.checked)} style={{ accentColor: 'var(--dark-primary)' }} />
               <span>Reconstructed Plot Polygons</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-main)' }}>
+              <input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)} style={{ accentColor: 'var(--dark-primary)' }} />
               <span>Plot Number & Area Labels</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showRoads} onChange={e => setShowRoads(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-main)' }}>
+              <input type="checkbox" checked={showRoads} onChange={e => setShowRoads(e.target.checked)} style={{ accentColor: 'var(--dark-primary)' }} />
               <span>Road Corridors & Centerlines</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showAmenities} onChange={e => setShowAmenities(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-main)' }}>
+              <input type="checkbox" checked={showAmenities} onChange={e => setShowAmenities(e.target.checked)} style={{ accentColor: 'var(--dark-primary)' }} />
               <span>Designated Amenities & Open Spaces</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showBoundary} onChange={e => setShowBoundary(e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-main)' }}>
+              <input type="checkbox" checked={showBoundary} onChange={e => setShowBoundary(e.target.checked)} style={{ accentColor: 'var(--dark-primary)' }} />
               <span>Site Perimeter (4E35: 102,566 m²)</span>
             </label>
           </div>
@@ -363,7 +402,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
 
         {/* Plots Directory List */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>
             PLOTS DIRECTORY ({filteredPlots.length}):
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -376,8 +415,8 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                   style={{
                     padding: '8px 12px',
                     borderRadius: '8px',
-                    background: isSelected ? 'rgba(6, 182, 212, 0.2)' : 'var(--bg-card)',
-                    border: isSelected ? '1px solid #06b6d4' : '1px solid transparent',
+                    background: isSelected ? 'var(--bg-subtle)' : '#ffffff',
+                    border: isSelected ? '1px solid var(--dark-primary)' : '1px solid var(--border-color)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -386,10 +425,10 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                   }}
                 >
                   <div>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: isSelected ? '#38bdf8' : '#f8fafc' }}>
+                    <span style={{ fontSize: '12px', fontWeight: isSelected ? 800 : 700, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
                       Plot #{plot.plotNumber}
                     </span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px', fontFamily: 'var(--font-mono)' }}>
                       {plot.calculatedArea ? `${plot.calculatedArea.toFixed(1)} m²` : 'Open Gap'}
                     </span>
                   </div>
@@ -397,7 +436,8 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                     width: '8px',
                     height: '8px',
                     borderRadius: '50%',
-                    background: getPlotBadgeDotColor(plot)
+                    background: getPlotBadgeDotColor(plot),
+                    boxShadow: isSelected ? '0 0 0 2px rgba(23,23,23,0.1)' : 'none'
                   }} />
                 </div>
               );
@@ -406,7 +446,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
         </div>
       </div>
 
-      {/* Center: Main 2D CAD/Vector Canvas */}
+      {/* Center: Main 2D CAD/Vector Canvas (Dual Canvas Mode) */}
       <div 
         ref={containerRef}
         onMouseDown={handleMouseDown}
@@ -417,46 +457,59 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
           flex: 1,
           height: '100%',
           position: 'relative',
-          background: '#070b13',
+          background: isLight ? '#f8fafc' : '#070b13',
           cursor: isDragging ? 'grabbing' : 'grab',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          transition: 'background-color 0.2s ease'
         }}
       >
-        {/* Floating View Controls */}
+        {/* Floating View Controls (DESIGN_SYSTEM.md §3) */}
         <div style={{
           position: 'absolute',
           top: '16px',
           right: '16px',
           display: 'flex',
-          gap: '8px',
-          zIndex: 30
+          gap: '6px',
+          zIndex: 30,
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(8px)',
+          padding: '4px',
+          borderRadius: '10px',
+          border: '1px solid var(--border-color)',
+          boxShadow: 'var(--shadow-sm)'
         }}>
-          <button className="btn btn-secondary" onClick={() => setScale(s => s * 1.25)} title="Zoom In">
-            <ZoomIn size={16} />
+          <button className="btn btn-secondary" onClick={() => setScale(s => s * 1.25)} title="Zoom In" style={{ padding: '6px 8px' }}>
+            <ZoomIn size={15} />
           </button>
-          <button className="btn btn-secondary" onClick={() => setScale(s => s * 0.8)} title="Zoom Out">
-            <ZoomOut size={16} />
+          <button className="btn btn-secondary" onClick={() => setScale(s => s * 0.8)} title="Zoom Out" style={{ padding: '6px 8px' }}>
+            <ZoomOut size={15} />
           </button>
-          <button className="btn btn-secondary" onClick={fitToScreen} title="Fit Entire Site to Viewport">
-            <Maximize2 size={16} />
+          <button className="btn btn-secondary" onClick={fitToScreen} title="Fit Entire Site to Viewport" style={{ padding: '6px 8px' }}>
+            <Maximize2 size={15} />
           </button>
         </div>
 
-        {/* Viewport Scale Indicator */}
+        {/* Viewport Scale Indicator HUD */}
         <div style={{
           position: 'absolute',
           bottom: '16px',
           left: '16px',
-          padding: '6px 12px',
-          background: 'rgba(15, 23, 42, 0.85)',
-          borderRadius: '6px',
+          padding: '6px 14px',
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: '8px',
           border: '1px solid var(--border-color)',
           fontSize: '11px',
           color: 'var(--text-muted)',
           zIndex: 30,
-          fontFamily: 'var(--font-mono)'
+          fontFamily: 'var(--font-mono)',
+          boxShadow: 'var(--shadow-sm)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          Working Units: Meters (1:1) • Scale: {(scale * 100).toFixed(0)}% • Plots: {filteredPlots.length}
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--status-unbooked)' }}></span>
+          <span>Working Units: Meters (1:1) • Scale: {(scale * 100).toFixed(0)}% • Plots: {filteredPlots.length}</span>
         </div>
 
         {/* SVG Drawing Canvas */}
@@ -474,7 +527,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
             {/* Grid background reference lines */}
             <defs>
               <pattern id="cadGrid" width="50" height="50" patternUnits="userSpaceOnUse">
-                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
+                <path d="M 50 0 L 0 0 0 50" fill="none" stroke={isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.03)'} strokeWidth="0.5" />
               </pattern>
             </defs>
             <rect x="9600" y="-1700" width="1300" height="500" fill="url(#cadGrid)" />
@@ -491,7 +544,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                         y1={e.start[1]}
                         x2={e.end[0]}
                         y2={e.end[1]}
-                        stroke="#334155"
+                        stroke={isLight ? '#cbd5e1' : '#334155'}
                         strokeWidth="0.3"
                       />
                     );
@@ -502,7 +555,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                         key={`wall-a-${idx}`}
                         points={e.points.map(p => `${p[0]},${p[1]}`).join(' ')}
                         fill="none"
-                        stroke="#334155"
+                        stroke={isLight ? '#cbd5e1' : '#334155'}
                         strokeWidth="0.3"
                       />
                     );
@@ -520,7 +573,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                         y1={e.start[1]}
                         x2={e.end[0]}
                         y2={e.end[1]}
-                        stroke="#475569"
+                        stroke={isLight ? '#e2e8f0' : '#475569'}
                         strokeWidth="0.3"
                         strokeDasharray="1,1"
                       />
@@ -535,7 +588,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
             {showBoundary && infrastructure?.siteBoundary && (
               <polygon
                 points={infrastructure.siteBoundary.map(p => `${p[0]},${p[1]}`).join(' ')}
-                fill="rgba(99, 102, 241, 0.05)"
+                fill={isLight ? 'rgba(99, 102, 241, 0.04)' : 'rgba(99, 102, 241, 0.05)'}
                 stroke="#6366f1"
                 strokeWidth="1.2"
                 strokeDasharray="4,2"
@@ -550,7 +603,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                     key={`rd-${idx}`}
                     points={line.map(p => `${p[0]},${p[1]}`).join(' ')}
                     fill="none"
-                    stroke="#475569"
+                    stroke={isLight ? '#94a3b8' : '#475569'}
                     strokeWidth="1.4"
                   />
                 ))}
@@ -562,8 +615,11 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               <g key={am.id}>
                 <polygon
                   points={am.coordinates.map(p => `${p[0]},${p[1]}`).join(' ')}
-                  fill={am.type === 'AMENITY_SPACE' ? 'rgba(6, 182, 212, 0.25)' : 'rgba(52, 211, 153, 0.25)'}
-                  stroke={am.type === 'AMENITY_SPACE' ? '#06b6d4' : '#10b981'}
+                  fill={am.type === 'AMENITY_SPACE' 
+                    ? (isLight ? 'rgba(14, 165, 233, 0.18)' : 'rgba(6, 182, 212, 0.25)')
+                    : (isLight ? 'rgba(16, 185, 129, 0.18)' : 'rgba(52, 211, 153, 0.25)')
+                  }
+                  stroke={am.type === 'AMENITY_SPACE' ? '#0284c7' : '#059669'}
                   strokeWidth="0.9"
                 />
               </g>
@@ -574,8 +630,8 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               <polygon
                 key={block.blockId}
                 points={block.coordinates.map(p => `${p[0]},${p[1]}`).join(' ')}
-                fill="rgba(245, 158, 11, 0.12)"
-                stroke="#ea580c"
+                fill={isLight ? 'rgba(234, 88, 12, 0.08)' : 'rgba(245, 158, 11, 0.12)'}
+                stroke="#c2410c"
                 strokeWidth="1.2"
                 strokeDasharray="3,1.5"
               />
@@ -586,27 +642,27 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               if (!plot.coordinates || plot.coordinates.length < 3) return null;
               const isSelected = selectedPlot?.plotNumber === plot.plotNumber;
               
-              let strokeColor = '#10b981';
-              let fillColor = 'rgba(16, 185, 129, 0.30)';
+              let strokeColor = isLight ? '#059669' : '#10b981';
+              let fillColor = isLight ? 'rgba(5, 150, 105, 0.15)' : 'rgba(16, 185, 129, 0.30)';
 
               if (isSelected) {
-                strokeColor = '#38bdf8';
-                fillColor = 'rgba(56, 189, 248, 0.45)';
+                strokeColor = isLight ? '#171717' : '#38bdf8';
+                fillColor = isLight ? 'rgba(23, 23, 23, 0.18)' : 'rgba(56, 189, 248, 0.45)';
               } else if (plot.status === 'BOOKED_REGISTERED') {
-                strokeColor = '#ef4444';
-                fillColor = 'rgba(239, 68, 68, 0.45)';
+                strokeColor = isLight ? '#dc2626' : '#ef4444';
+                fillColor = isLight ? 'rgba(220, 38, 38, 0.22)' : 'rgba(239, 68, 68, 0.45)';
               } else if (plot.status === 'BOOKED_UNREGISTERED') {
-                strokeColor = '#eab308';
-                fillColor = 'rgba(234, 179, 8, 0.45)';
+                strokeColor = isLight ? '#d97706' : '#eab308';
+                fillColor = isLight ? 'rgba(217, 119, 6, 0.22)' : 'rgba(234, 179, 8, 0.45)';
               } else if (plot.extractionStatus === 'COMPOUND_BLOCK_REQUIRING_SUBDIVISION') {
-                strokeColor = '#ea580c';
-                fillColor = 'rgba(234, 88, 12, 0.25)';
+                strokeColor = isLight ? '#c2410c' : '#ea580c';
+                fillColor = isLight ? 'rgba(194, 65, 12, 0.15)' : 'rgba(234, 88, 12, 0.25)';
               } else if (plot.extractionStatus === 'INCOMPLETE_BOUNDARY') {
-                strokeColor = '#a855f7';
-                fillColor = 'rgba(168, 85, 247, 0.25)';
+                strokeColor = isLight ? '#7c3aed' : '#a855f7';
+                fillColor = isLight ? 'rgba(124, 58, 237, 0.15)' : 'rgba(168, 85, 247, 0.25)';
               } else if (plot.extractionStatus === 'RECONSTRUCTED_AWAITING_REVIEW') {
-                strokeColor = '#06b6d4';
-                fillColor = 'rgba(6, 182, 212, 0.25)';
+                strokeColor = isLight ? '#475569' : '#06b6d4';
+                fillColor = isLight ? 'rgba(71, 85, 105, 0.15)' : 'rgba(6, 182, 212, 0.25)';
               }
 
               const ptsStr = plot.coordinates.map(p => `${p[0]},${p[1]}`).join(' ');
@@ -617,7 +673,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                   points={ptsStr}
                   fill={fillColor}
                   stroke={strokeColor}
-                  strokeWidth={isSelected ? 1.6 : 0.6}
+                  strokeWidth={isSelected ? 1.8 : 0.6}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectPlot(plot);
@@ -632,7 +688,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               if (plot.markerX === null || plot.markerY === null) return null;
               return (
                 <g key={`incomp-${plot.plotNumber}`}>
-                  <circle cx={plot.markerX} cy={plot.markerY} r={1.8} fill="#a855f7" opacity={0.85} />
+                  <circle cx={plot.markerX} cy={plot.markerY} r={1.8} fill="var(--status-incomplete)" opacity={0.85} />
                   <line x1={plot.markerX - 2} y1={plot.markerY} x2={plot.markerX + 2} y2={plot.markerY} stroke="#fff" strokeWidth="0.4" />
                   <line x1={plot.markerX} y1={plot.markerY - 2} x2={plot.markerX} y2={plot.markerY + 2} stroke="#fff" strokeWidth="0.4" />
                 </g>
@@ -643,14 +699,17 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
             {showLabels && scale > 1.1 && filteredPlots.map(plot => {
               if (plot.markerX === null || plot.markerY === null) return null;
               const isSelected = selectedPlot?.plotNumber === plot.plotNumber;
+              const labelColor = isLight ? (isSelected ? '#171717' : '#0f172a') : (isSelected ? '#38bdf8' : '#ffffff');
+              const subLabelColor = isLight ? '#64748b' : 'rgba(255,255,255,0.7)';
+
               return (
                 <g key={`lbl-${plot.plotNumber}`} transform={`translate(${plot.markerX}, ${plot.markerY}) scale(1, -1)`}>
                   <text
                     x={0}
                     y={1.2}
-                    fill={isSelected ? '#38bdf8' : '#ffffff'}
+                    fill={labelColor}
                     fontSize={2.2}
-                    fontWeight="700"
+                    fontWeight="800"
                     textAnchor="middle"
                     style={{ pointerEvents: 'none', fontFamily: 'var(--font-sans)' }}
                   >
@@ -660,7 +719,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                     <text
                       x={0}
                       y={-1.8}
-                      fill="rgba(255,255,255,0.7)"
+                      fill={subLabelColor}
                       fontSize={1.2}
                       textAnchor="middle"
                       style={{ pointerEvents: 'none', fontFamily: 'var(--font-mono)' }}
@@ -675,21 +734,21 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
         </svg>
       </div>
 
-      {/* Right: Animated Plot Details & Inventory Status Edit Panel */}
+      {/* Right: Animated Plot Details & Inventory Status Edit Panel (DESIGN_SYSTEM.md §4) */}
       {selectedPlot && (
         <div
           key={selectedPlot.plotNumber}
           className="animate-slide-right"
           style={{
             width: '380px',
-            background: 'var(--bg-secondary)',
+            background: '#ffffff',
             borderLeft: '1px solid var(--border-color)',
             display: 'flex',
             flexDirection: 'column',
             zIndex: 35,
             flexShrink: 0,
             overflowY: 'auto',
-            boxShadow: 'var(--shadow-lg)'
+            boxShadow: 'var(--shadow-xl)'
           }}
         >
           {/* Top Header with Action */}
@@ -699,11 +758,14 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(30, 41, 59, 0.4)'
+            background: '#ffffff',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em', fontFamily: 'var(--font-mono)' }}>
                   Plot #{selectedPlot.plotNumber}
                 </h2>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -715,7 +777,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {!isEditing ? (
                 <button
                   className="btn btn-secondary"
@@ -723,7 +785,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                   style={{ padding: '6px 12px', fontSize: '12px' }}
                   title="Edit Plot Inventory Record"
                 >
-                  <Edit3 size={14} />
+                  <Edit3 size={13} />
                   Edit
                 </button>
               ) : (
@@ -733,7 +795,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                   style={{ padding: '6px 12px', fontSize: '12px' }}
                   title="Cancel Edits"
                 >
-                  <X size={14} />
+                  <X size={13} />
                   Cancel
                 </button>
               )}
@@ -746,11 +808,11 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                   color: 'var(--text-muted)',
                   cursor: 'pointer',
                   padding: '4px',
-                  fontSize: '16px'
+                  borderRadius: '6px'
                 }}
                 title="Close Plot Details"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
           </div>
@@ -759,9 +821,9 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
           {successToast && (
             <div style={{
               padding: '10px 16px',
-              background: 'rgba(16, 185, 129, 0.2)',
-              borderBottom: '1px solid rgba(16, 185, 129, 0.4)',
-              color: '#34d399',
+              background: 'var(--status-unbooked-bg)',
+              borderBottom: '1px solid var(--status-unbooked-border)',
+              color: 'var(--status-unbooked)',
               fontSize: '12px',
               fontWeight: 600,
               display: 'flex',
@@ -774,51 +836,42 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
           )}
 
           {/* Content Body */}
-          <div className="animate-card-enter" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* 1. Inventory & Customer Details Card (SHIFTED TO TOP) */}
-            <div style={{
-              background: 'var(--bg-card)',
-              borderRadius: '10px',
-              padding: '14px',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.04em' }}>
-                INVENTORY OWNERSHIP & BOOKING RECORDS
+          <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-primary)' }}>
+            
+            {/* 1. Inventory & Customer Details Card (DESIGN_SYSTEM.md §4) */}
+            <div className="section-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
+                <ShieldCheck size={15} color="var(--dark-primary)" />
+                <h3 style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  INVENTORY OWNERSHIP & BOOKING RECORDS
+                </h3>
               </div>
 
               {/* Status Selection (Editable) */}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                  CURRENT INVENTORY STATUS:
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
+                  CURRENT INVENTORY STATUS <span style={{ color: 'var(--status-booked-reg)' }}>*</span>
                 </label>
                 {isEditing ? (
                   <select
                     value={editStatus}
                     onChange={e => setEditStatus(e.target.value as PlotStatus)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      background: 'var(--bg-primary)',
-                      border: '1px solid #38bdf8',
-                      borderRadius: '6px',
-                      color: '#fff',
-                      fontSize: '13px',
-                      outline: 'none'
-                    }}
+                    className="input-field"
+                    style={{ fontWeight: 600 }}
                   >
                     <option value="UNBOOKED">UNBOOKED (Available)</option>
-                    <option value="BOOKED_UNREGISTERED">BOOKED UNREGISTERED (Token Paid - Yellow)</option>
+                    <option value="BOOKED_UNREGISTERED">BOOKED UNREGISTERED (Token Paid - Amber)</option>
                     <option value="BOOKED_REGISTERED">BOOKED REGISTERED (Deed Executed - Red)</option>
                   </select>
                 ) : (
                   <div style={{ 
-                    fontSize: '14px', 
-                    fontWeight: 800, 
+                    fontSize: '13px', 
+                    fontWeight: 700, 
                     color: selectedPlot.status === 'BOOKED_REGISTERED' 
-                      ? '#f87171' 
+                      ? 'var(--status-booked-reg)' 
                       : selectedPlot.status === 'BOOKED_UNREGISTERED' 
-                      ? '#facc15' 
-                      : '#34d399' 
+                      ? 'var(--status-booked-unreg)' 
+                      : 'var(--status-unbooked)' 
                   }}>
                     {selectedPlot.status.replace(/_/g, ' ')}
                   </div>
@@ -829,54 +882,62 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               {(editStatus === 'BOOKED_UNREGISTERED' || editStatus === 'BOOKED_REGISTERED') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
-                    <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                      Customer Name:
+                    <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
+                      Customer Name <span style={{ color: 'var(--status-booked-reg)' }}>*</span>
                     </label>
                     {isEditing ? (
-                      <input
-                        type="text"
-                        value={customerName}
-                        placeholder="e.g. Ramesh Kulkarni"
-                        onChange={e => setCustomerName(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '6px 10px',
-                          background: 'var(--bg-primary)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '6px',
-                          color: '#fff',
-                          fontSize: '12px'
-                        }}
-                      />
+                      <div>
+                        <input
+                          id="field-customerName"
+                          type="text"
+                          value={customerName}
+                          placeholder="e.g. Ramesh Kulkarni"
+                          onChange={e => {
+                            setCustomerName(e.target.value);
+                            if (fieldErrors.customerName) setFieldErrors(prev => ({ ...prev, customerName: '' }));
+                          }}
+                          className={`input-field ${fieldErrors.customerName ? 'input-field-error' : ''}`}
+                        />
+                        {fieldErrors.customerName && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', padding: '6px 10px', borderRadius: '6px', background: 'var(--status-booked-reg-bg)', border: '1px solid var(--status-booked-reg-border)', color: 'var(--status-booked-reg)', fontSize: '11px', fontWeight: 600 }}>
+                            <AlertCircle size={14} />
+                            <span>{fieldErrors.customerName}</span>
+                          </div>
+                        )}
+                      </div>
                     ) : (
-                      <div style={{ fontSize: '13px', color: '#fff' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
                         {selectedPlot.customer?.name || 'Customer Assigned'}
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                      Contact Phone:
+                    <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
+                      Contact Phone <span style={{ color: 'var(--status-booked-reg)' }}>*</span>
                     </label>
                     {isEditing ? (
-                      <input
-                        type="text"
-                        value={customerPhone}
-                        placeholder="e.g. +91 98220 12345"
-                        onChange={e => setCustomerPhone(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '6px 10px',
-                          background: 'var(--bg-primary)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '6px',
-                          color: '#fff',
-                          fontSize: '12px'
-                        }}
-                      />
+                      <div>
+                        <input
+                          id="field-customerPhone"
+                          type="text"
+                          value={customerPhone}
+                          placeholder="e.g. +91 98220 12345"
+                          onChange={e => {
+                            setCustomerPhone(e.target.value);
+                            if (fieldErrors.customerPhone) setFieldErrors(prev => ({ ...prev, customerPhone: '' }));
+                          }}
+                          className={`input-field ${fieldErrors.customerPhone ? 'input-field-error' : ''}`}
+                        />
+                        {fieldErrors.customerPhone && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', padding: '6px 10px', borderRadius: '6px', background: 'var(--status-booked-reg-bg)', border: '1px solid var(--status-booked-reg-border)', color: 'var(--status-booked-reg)', fontSize: '11px', fontWeight: 600 }}>
+                            <AlertCircle size={14} />
+                            <span>{fieldErrors.customerPhone}</span>
+                          </div>
+                        )}
+                      </div>
                     ) : (
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                         {selectedPlot.customer?.contact || '+91 98220 12345'}
                       </div>
                     )}
@@ -884,7 +945,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
 
                   {editStatus === 'BOOKED_UNREGISTERED' && (
                     <div>
-                      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
                         Booking Reference Token:
                       </label>
                       {isEditing ? (
@@ -892,18 +953,11 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                           type="text"
                           value={bookingRef}
                           onChange={e => setBookingRef(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '6px 10px',
-                            background: 'var(--bg-primary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '6px',
-                            color: '#fff',
-                            fontSize: '12px'
-                          }}
+                          className="input-field"
+                          style={{ fontFamily: 'var(--font-mono)' }}
                         />
                       ) : (
-                        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: '#facc15' }}>
+                        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--status-booked-unreg)', fontWeight: 600 }}>
                           {bookingRef}
                         </div>
                       )}
@@ -912,7 +966,7 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
 
                   {editStatus === 'BOOKED_REGISTERED' && (
                     <div>
-                      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
                         Sub-Registrar Doc Number:
                       </label>
                       {isEditing ? (
@@ -920,18 +974,11 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                           type="text"
                           value={regNo}
                           onChange={e => setRegNo(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '6px 10px',
-                            background: 'var(--bg-primary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '6px',
-                            color: '#fff',
-                            fontSize: '12px'
-                          }}
+                          className="input-field"
+                          style={{ fontFamily: 'var(--font-mono)' }}
                         />
                       ) : (
-                        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: '#f87171' }}>
+                        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--status-booked-reg)', fontWeight: 600 }}>
                           {regNo}
                         </div>
                       )}
@@ -941,8 +988,9 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
               )}
 
               {editStatus === 'UNBOOKED' && !isEditing && (
-                <div style={{ fontSize: '12px', color: '#34d399', padding: '6px 0', lineHeight: 1.5 }}>
-                  ✓ Plot is open in inventory. Click <strong>Edit</strong> above to create a customer booking.
+                <div style={{ fontSize: '12px', color: 'var(--status-unbooked)', padding: '6px 0', lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle size={14} />
+                  <span>Plot is open in inventory. Click <strong>Edit</strong> above to create a customer booking.</span>
                 </div>
               )}
             </div>
@@ -954,15 +1002,15 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                   className="btn btn-primary"
                   onClick={handleSaveStatusRecord}
                   disabled={isSaving}
-                  style={{ flex: 1, padding: '10px' }}
+                  style={{ flex: 1, padding: '10px', fontSize: '12px' }}
                 >
-                  <Save size={15} />
+                  <Save size={14} />
                   {isSaving ? 'Persisting...' : 'Save & Persist Status'}
                 </button>
                 <button
                   className="btn btn-secondary"
                   onClick={handleCancelEdit}
-                  style={{ padding: '10px 16px' }}
+                  style={{ padding: '10px 16px', fontSize: '12px' }}
                 >
                   Cancel
                 </button>
@@ -970,13 +1018,8 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
             )}
 
             {/* 2. Commercial Pricing Card */}
-            <div style={{
-              background: 'var(--bg-card)',
-              borderRadius: '10px',
-              padding: '14px',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.04em' }}>
+            <div className="section-card">
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.04em' }}>
                 COMMERCIAL PRICING
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -986,19 +1029,11 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                     type="number"
                     value={editBaseRate}
                     onChange={e => setEditBaseRate(parseFloat(e.target.value) || 0)}
-                    style={{
-                      width: '120px',
-                      padding: '4px 8px',
-                      background: 'var(--bg-primary)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '6px',
-                      color: '#fff',
-                      fontSize: '13px',
-                      textAlign: 'right'
-                    }}
+                    className="input-field"
+                    style={{ width: '120px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}
                   />
                 ) : (
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
                     ₹{editBaseRate.toLocaleString('en-IN')}/m²
                   </span>
                 )}
@@ -1008,44 +1043,61 @@ export const GeometryAuditView: React.FC<GeometryAuditViewProps> = ({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 paddingTop: '8px',
-                borderTop: '1px solid rgba(255,255,255,0.06)'
+                borderTop: '1px solid var(--border-color)'
               }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>Total Plot Value:</span>
-                <span style={{ fontSize: '18px', fontWeight: 800, color: '#34d399' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}>Total Plot Value:</span>
+                <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--status-unbooked)', fontFamily: 'var(--font-mono)' }}>
                   ₹{(calculatedTotal / 100000).toFixed(2)} Lakhs
                 </span>
               </div>
             </div>
 
             {/* 3. Geometric Details Card */}
-            <div style={{
-              background: 'var(--bg-card)',
-              borderRadius: '10px',
-              padding: '14px',
-              border: '1px solid var(--border-color)'
-            }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.04em' }}>
+            <div className="section-card">
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.04em' }}>
                 LAND GEOMETRY & MEASUREMENTS
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Calculated Area</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#38bdf8' }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--dark-primary)', fontFamily: 'var(--font-mono)' }}>
                     {selectedPlot.calculatedArea ? `${selectedPlot.calculatedArea.toFixed(2)} m²` : 'N/A'}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>CAD Annotated Area</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
                     {selectedPlot.annotatedArea ? `${selectedPlot.annotatedArea.toFixed(2)} m²` : 'N/A'}
                   </div>
                 </div>
               </div>
-              <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.4 }}>
-                Discrepancy: {selectedPlot.areaDiffPct !== null ? `${selectedPlot.areaDiffPct.toFixed(2)}%` : '0.00%'} • Verification:
-                <div style={{ color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+              <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                Discrepancy: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-main)' }}>{selectedPlot.areaDiffPct !== null ? `${selectedPlot.areaDiffPct.toFixed(2)}%` : '0.00%'}</span> • Status:
+                <div style={{ color: 'var(--text-main)', fontWeight: 600, marginTop: '2px' }}>
                   {selectedPlot.extractionStatus}
                 </div>
+              </div>
+
+              {/* Subdivide or Manual Correction Quick Buttons */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+                {selectedPlot.extractionStatus === 'COMPOUND_BLOCK_REQUIRING_SUBDIVISION' && (
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => onOpenBlockSplitter(selectedPlot)}
+                    style={{ flex: 1, padding: '7px', fontSize: '11px' }}
+                  >
+                    <SplitSquareVertical size={13} color="var(--status-compound)" />
+                    Subdivide Block
+                  </button>
+                )}
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => onOpenManualCorrection(selectedPlot)}
+                  style={{ flex: 1, padding: '7px', fontSize: '11px' }}
+                >
+                  <Edit3 size={13} />
+                  Boundary Correction
+                </button>
               </div>
             </div>
           </div>

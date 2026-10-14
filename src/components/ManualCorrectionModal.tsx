@@ -28,7 +28,6 @@ export const ManualCorrectionModal: React.FC<ManualCorrectionModalProps> = ({
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // In a real editor, coordinates are adjusted or partitioned
       await onSaveCorrection(
         plot.plotNumber,
         mode,
@@ -53,7 +52,7 @@ export const ManualCorrectionModal: React.FC<ManualCorrectionModalProps> = ({
       left: 0,
       width: '100vw',
       height: '100vh',
-      background: 'rgba(0, 0, 0, 0.75)',
+      background: 'rgba(23, 23, 23, 0.45)',
       backdropFilter: 'blur(6px)',
       display: 'flex',
       alignItems: 'center',
@@ -62,10 +61,10 @@ export const ManualCorrectionModal: React.FC<ManualCorrectionModalProps> = ({
     }}>
       <div style={{
         width: '500px',
-        background: 'var(--bg-secondary)',
-        borderRadius: '14px',
+        background: '#ffffff',
+        borderRadius: '16px',
         border: '1px solid var(--border-color)',
-        boxShadow: 'var(--shadow-lg)',
+        boxShadow: 'var(--shadow-xl)',
         overflow: 'hidden'
       }} className="animate-fade-in">
         {/* Header */}
@@ -75,19 +74,44 @@ export const ManualCorrectionModal: React.FC<ManualCorrectionModalProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'rgba(30, 41, 59, 0.5)'
+          background: '#ffffff'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {mode === 'SPLIT_BLOCK' ? (
-              <SplitSquareVertical size={20} color="#ea580c" />
-            ) : (
-              <Edit3 size={20} color="#06b6d4" />
-            )}
-            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc' }}>
-              {mode === 'SPLIT_BLOCK' ? `Subdivide Compound Block #${plot.plotNumber}` : `Manual Boundary Correction #${plot.plotNumber}`}
-            </h3>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: mode === 'SPLIT_BLOCK' ? 'var(--status-compound-bg)' : 'var(--bg-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {mode === 'SPLIT_BLOCK' ? (
+                <SplitSquareVertical size={18} color="var(--status-compound)" />
+              ) : (
+                <Edit3 size={18} color="var(--dark-primary)" />
+              )}
+            </div>
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>
+                {mode === 'SPLIT_BLOCK' ? `Subdivide Compound Block #${plot.plotNumber}` : `Manual Boundary Correction #${plot.plotNumber}`}
+              </h3>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Auditor Manual Override & Reconciliation Engine
+              </p>
+            </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '4px',
+              borderRadius: '6px'
+            }}
+          >
             <X size={18} />
           </button>
         </div>
@@ -96,49 +120,50 @@ export const ManualCorrectionModal: React.FC<ManualCorrectionModalProps> = ({
         <form onSubmit={handleSubmit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {success ? (
             <div style={{
-              padding: '20px',
+              padding: '24px',
               textAlign: 'center',
-              color: '#34d399',
+              color: 'var(--status-unbooked)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '10px'
             }}>
-              <CheckCircle size={36} />
-              <div style={{ fontSize: '14px', fontWeight: 700 }}>
+              <CheckCircle size={36} color="var(--status-unbooked)" />
+              <div style={{ fontSize: '15px', fontWeight: 700 }}>
                 Correction Recorded Successfully!
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Recorded in audit history and saved separately without modifying original CAD vectors.
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '340px' }}>
+                Recorded in audit history and saved separately in `manual_corrections.json` without modifying original CAD vectors.
               </div>
             </div>
           ) : (
             <>
               <div style={{
-                background: 'var(--bg-card)',
-                padding: '12px',
-                borderRadius: '8px',
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border-color)',
+                padding: '12px 16px',
+                borderRadius: '10px',
                 fontSize: '12px',
                 color: 'var(--text-muted)',
-                lineHeight: 1.5
+                lineHeight: 1.6
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <span>Target Plot / Block:</span>
-                  <strong style={{ color: '#fff' }}>Plot #{plot.plotNumber}</strong>
+                  <strong style={{ color: 'var(--text-main)' }}>Plot #{plot.plotNumber}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <span>Candidate Polygon Area:</span>
-                  <strong style={{ color: '#38bdf8' }}>{plot.calculatedArea?.toFixed(2)} m²</strong>
+                  <strong style={{ color: 'var(--dark-primary)', fontFamily: 'var(--font-mono)' }}>{plot.calculatedArea?.toFixed(2)} m²</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>CAD Annotated Unit Area:</span>
-                  <strong style={{ color: '#fff' }}>{plot.annotatedArea?.toFixed(2)} m²</strong>
+                  <strong style={{ color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>{plot.annotatedArea?.toFixed(2)} m²</strong>
                 </div>
               </div>
 
               {mode === 'SPLIT_BLOCK' && (
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#fff', display: 'block', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '6px' }}>
                     Number of Sub-Plots to Partition:
                   </label>
                   <input
@@ -147,40 +172,24 @@ export const ManualCorrectionModal: React.FC<ManualCorrectionModalProps> = ({
                     max={25}
                     value={numSubPlots}
                     onChange={e => setNumSubPlots(parseInt(e.target.value) || 2)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      background: 'var(--bg-primary)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '8px',
-                      color: '#fff',
-                      fontSize: '13px'
-                    }}
+                    className="input-field"
                   />
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
                     Approx. {((plot.calculatedArea || 1000) / numSubPlots).toFixed(1)} m² per sub-plot
                   </span>
                 </div>
               )}
 
               <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#fff', display: 'block', marginBottom: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '6px' }}>
                   Auditor Engineering Notes & Rationale:
                 </label>
                 <textarea
                   rows={3}
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    resize: 'none'
-                  }}
+                  className="input-field"
+                  style={{ resize: 'none' }}
                 />
               </div>
 
@@ -188,14 +197,14 @@ export const ManualCorrectionModal: React.FC<ManualCorrectionModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border-color)',
                 fontSize: '11px',
-                color: '#93c5fd'
+                color: 'var(--text-muted)'
               }}>
-                <AlertCircle size={15} />
+                <AlertCircle size={15} color="var(--dark-primary)" />
                 Original CAD geometry will be preserved. Corrections are isolated in `manual_corrections.json`.
               </div>
 
